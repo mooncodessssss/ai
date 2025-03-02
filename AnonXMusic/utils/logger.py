@@ -47,7 +47,7 @@ async def play_logs(message, streamtype):
         if message.chat.id != LOG_GROUP_ID:
             try:
                 await app.send_message(
-                    chat_id=LOG_GROUP_ID,
+                    chat_id=LOGGER_ID,
                     text=logger_text,
                     parse_mode=ParseMode.HTML,
                     disable_web_page_preview=True,
