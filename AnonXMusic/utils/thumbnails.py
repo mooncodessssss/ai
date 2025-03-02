@@ -1,15 +1,12 @@
 import os
 import re
-
-import aiofiles
+import random
 import aiohttp
-import numpy as np
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
-from unidecode import unidecode
-from youtubesearchpython.__future__ import VideosSearch
+import aiofiles
+import traceback
 
-from AnonXMusic import app
-from config import YOUTUBE_IMG_URL
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
+from youtubesearchpython.__future__ import VideosSearch
 
 
 def changeImageSize(maxWidth, maxHeight, image):
@@ -20,29 +17,19 @@ def changeImageSize(maxWidth, maxHeight, image):
     newImage = image.resize((newWidth, newHeight))
     return newImage
 
-def circle(img): 
-     h,w=img.size 
-     a = Image.new('L', [h,w], 0) 
-     b = ImageDraw.Draw(a) 
-     b.pieslice([(0, 0), (h,w)], 0, 360, fill = 255,outline = "white") 
-     c = np.array(img) 
-     d = np.array(a) 
-     e = np.dstack((c, d)) 
-     return Image.fromarray(e)
-
-
-def clear(text):
+def truncate(text):
     list = text.split(" ")
-    title = ""
+    text1, text2 = "", ""
     for i in list:
-        if len(title) + len(i) < 60:
-            title += " " + i
-    return title.strip()
+        if len(text1) + len(i) < 30:        
+            text1 += " " + i
+        elif len(text2) + len(i) < 30:       
+            text2 += " " + i
+    return [text1.strip(), text2.strip()]
 
-
-async def get_thumb(videoid,user_id):
-    if os.path.isfile(f"cache/{videoid}_{user_id}.png"):
-        return f"cache/{videoid}_{user_id}.png"
+async def get_thumb(videoid: str):
+    #if os.path.isfile(f"cache/{videoid}.png"):
+    #    return f"cache/{videoid}.png"
 
     url = f"https://www.youtube.com/watch?v={videoid}"
     try:
@@ -71,73 +58,97 @@ async def get_thumb(videoid,user_id):
         async with aiohttp.ClientSession() as session:
             async with session.get(thumbnail) as resp:
                 if resp.status == 200:
-                    f = await aiofiles.open(f"cache/thumb{videoid}.png", mode="wb")
+                    f = await aiofiles.open(
+                        f"cache/thumb{videoid}.png", mode="wb"
+                    )
                     await f.write(await resp.read())
                     await f.close()
-        try:
-            async for photo in app.get_chat_photos(user_id,1):
-                sp=await app.download_media(photo.file_id, file_name=f'{user_id}.jpg')
-        except:
-            async for photo in app.get_chat_photos(app.id,1):
-                sp=await app.download_media(photo.file_id, file_name=f'{app.id}.jpg')
 
-        xp=Image.open(sp)
-
+        icons = Image.open("AnonXMusic/assets/icons.png")
         youtube = Image.open(f"cache/thumb{videoid}.png")
         image1 = changeImageSize(1280, 720, youtube)
         image2 = image1.convert("RGBA")
-        background = image2.filter(filter=ImageFilter.BoxBlur(10))
+        background = image2.filter(filter=ImageFilter.BoxBlur(20))
         enhancer = ImageEnhance.Brightness(background)
-        background = enhancer.enhance(0.5)
-        y=changeImageSize(200,200,circle(youtube)) 
-        background.paste(y,(45,225),mask=y)
-        a=changeImageSize(200,200,circle(xp)) 
-        background.paste(a,(1045,225),mask=a)
+        background = enhancer.enhance(0.6)
+
+        Xcenter = youtube.width / 2
+        Ycenter = youtube.height / 2
+        x1 = Xcenter - 250
+        y1 = Ycenter - 250
+        x2 = Xcenter + 250
+        y2 = Ycenter + 250
+        rand = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+        logo = youtube.crop((x1, y1, x2, y2))
+        logo.thumbnail((370, 370), Image.ANTIALIAS)
+        logo = ImageOps.expand(logo, border=17, fill=rand)
+        background.paste(logo, (100, 150))
+
         draw = ImageDraw.Draw(background)
         arial = ImageFont.truetype("AnonXMusic/assets/font2.ttf", 30)
         font = ImageFont.truetype("AnonXMusic/assets/font.ttf", 30)
-        draw.text((1110, 8), unidecode(app.name), fill="white", font=arial)
+        tfont = ImageFont.truetype("AnonXMusic/assets/font3.ttf", 45)
+
+        stitle = truncate(title)
         draw.text(
-                (55, 560),
-                f"{channel} | {views[:23]}",
-                (255, 255, 255),
-                font=arial,
-            )
+            (565, 180),
+            stitle[0],
+            (255, 255, 255),
+            font=tfont,
+        )
         draw.text(
-                (57, 600),
-                clear(title),
-                (255, 255, 255),
-                font=font,
-            )
+            (565, 230),
+            stitle[1],
+            (255, 255, 255),
+            font=tfont,
+        )
+        draw.text(
+            (565, 320),
+            f"{channel} | {views[:23]}",
+            (255, 255, 255),
+            font=arial,
+        )
         draw.line(
-                [(55, 660), (1220, 660)],
-                fill="white",
-                width=5,
-                joint="curve",
-            )
+             [(565, 385), (1130, 385)],
+             fill="white",
+             width=8,
+             joint="curve",
+        )
+        draw.line(
+             [(565, 385), (999, 385)],
+             fill=rand,
+             width=8,
+             joint="curve",
+        )
         draw.ellipse(
-                [(918, 648), (942, 672)],
-                outline="white",
-                fill="white",
-                width=15,
-            )
+            [(999, 375), (1020, 395)],
+            outline=rand,
+            fill=rand,
+            width=15,
+        )
         draw.text(
-                (36, 685),
-                "00:00",
-                (255, 255, 255),
-                font=arial,
-            )
+            (565, 400),
+            "00:00",
+            (255, 255, 255),
+            font=arial,
+        )
         draw.text(
-                (1185, 685),
-                f"{duration[:23]}",
-                (255, 255, 255),
-                font=arial,
-            )
+            (1080, 400),
+            f"{duration[:23]}",
+            (255, 255, 255),
+            font=arial,
+        )
+        picons = icons.resize((580, 62))
+        background.paste(picons, (565, 450), picons)
+
         try:
             os.remove(f"cache/thumb{videoid}.png")
         except:
             pass
-        background.save(f"cache/{videoid}_{user_id}.png")
-        return f"cache/{videoid}_{user_id}.png"
-    except Exception:
-        return YOUTUBE_IMG_URL
+        tpath = f"cache/{videoid}.png"
+        background.save(tpath)
+        return tpath
+
+    except:
+        traceback.print_exc()
+        return None
